@@ -2,9 +2,10 @@
   "name": "@jmpm/registry-api",
   "version": "1.0.0",
   "type": "module",
-  "main": "./src/server.ts",
+  "main": "./dist/server.js",
   "scripts": {
-    "start": "tsx src/start.ts",
+    "build": "tsc",
+    "start": "node dist/start.js",
     "dev": "tsx watch src/start.ts"
   },
   "dependencies": {

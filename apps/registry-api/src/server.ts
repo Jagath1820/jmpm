@@ -48,9 +48,15 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
     res.json({ ok: true, pong: true, time: new Date().toISOString() });
   });
 
+  const getParam = (val: string | string[] | undefined): string => {
+    if (Array.isArray(val)) return val[0] || '';
+    return val || '';
+  };
+
   // User registration & login (CouchDB spec)
   app.put('/-/user/org.couchdb.user::username', async (req, res) => {
-    const username = req.params.username;
+    const rawParams = req.params as Record<string, string>;
+    const username = rawParams.username || rawParams[':username'];
     const { password, email } = req.body || {};
 
     if (!username || !password) {
@@ -102,14 +108,14 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
   });
 
   // Helper to normalize package name
-  const extractPkgName = (raw: string): string => {
-    return decodeURIComponent(raw);
+  const extractPkgName = (raw: string | string[] | undefined): string => {
+    return decodeURIComponent(getParam(raw));
   };
 
   // Tarball download: GET /:package/-/:tarball
   app.get(['/:package/-/:tarball', '/@:scope/:pkg/-/:tarball'], async (req, res) => {
     if (!verifyReadAuth(req, res)) return;
-    const tarball = req.params.tarball;
+    const tarball = getParam(req.params.tarball);
 
     // Direct signed cloud URL redirect if supported (e.g. GCS)
     if (storage.getDownloadUrl) {
@@ -133,7 +139,7 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
   app.get(['/:package', '/@:scope/:pkg'], (req, res) => {
     if (!verifyReadAuth(req, res)) return;
     const pkgName = req.params.scope
-      ? `@${req.params.scope}/${req.params.pkg}`
+      ? `@${getParam(req.params.scope)}/${getParam(req.params.pkg)}`
       : extractPkgName(req.params.package);
 
     const doc = db.getPackage(pkgName);
@@ -155,9 +161,9 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
   app.get(['/:package/:version', '/@:scope/:pkg/:version'], (req, res) => {
     if (!verifyReadAuth(req, res)) return;
     const pkgName = req.params.scope
-      ? `@${req.params.scope}/${req.params.pkg}`
+      ? `@${getParam(req.params.scope)}/${getParam(req.params.pkg)}`
       : extractPkgName(req.params.package);
-    const version = req.params.version;
+    const version = getParam(req.params.version);
 
     const doc = db.getPackage(pkgName);
     if (!doc || !doc.versions[version]) {
@@ -180,7 +186,7 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
 
     const payload = req.body;
     const pkgName = req.params.scope
-      ? `@${req.params.scope}/${req.params.pkg}`
+      ? `@${getParam(req.params.scope)}/${getParam(req.params.pkg)}`
       : extractPkgName(req.params.package);
 
     if (!payload || !payload.versions) {

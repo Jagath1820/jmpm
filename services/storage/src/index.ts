@@ -76,6 +76,7 @@ export class GoogleCloudStorageAdapter implements StorageAdapter {
     if (!this.storageClient) {
       try {
         // Dynamic import so @google-cloud/storage is only required when GCS is enabled
+        // @ts-ignore
         const { Storage } = await import('@google-cloud/storage');
         this.storageClient = new Storage({
           projectId: this.projectId,

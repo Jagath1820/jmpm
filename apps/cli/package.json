@@ -3,12 +3,14 @@
   "version": "1.0.0",
   "type": "module",
   "bin": {
-    "jmpm": "./src/bin.ts",
-    "forgepm": "./src/bin.ts"
+    "jmpm": "./dist/bin.js",
+    "forgepm": "./dist/bin.js"
   },
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "start": "tsx src/bin.ts"
+    "build": "tsc",
+    "start": "node dist/bin.js"
   },
   "dependencies": {
     "@jmpm/core": "*",
