@@ -43,9 +43,9 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
     return true;
   };
 
-  // Ping
-  app.get('/-/ping', (req, res) => {
-    res.json({ ok: true, pong: true, time: new Date().toISOString() });
+  // Health & Ping endpoints (Public, no auth required)
+  app.get(['/health', '/-/ping'], (req, res) => {
+    res.json({ ok: true, status: 'healthy', pong: true, time: new Date().toISOString() });
   });
 
   const getParam = (val: string | string[] | undefined): string => {
