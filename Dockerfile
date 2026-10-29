@@ -31,3 +31,4 @@ VOLUME ["/app/storage"]
 EXPOSE 4873
 
 CMD ["node", "--loader", "tsx", "apps/registry-api/src/server.ts"]
+
