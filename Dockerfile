@@ -13,8 +13,8 @@ COPY prisma/ prisma/
 # Install dependencies
 RUN npm ci
 
-# Ahead-Of-Time compile all TypeScript packages to pure JavaScript
-RUN npm run build
+# Ahead-Of-Time compile registry API and its required services
+RUN npm run build:registry
 
 # Stage 2: Production Runner (Hardened, Zero-Transpiler Overhead)
 FROM node:22-alpine AS runner

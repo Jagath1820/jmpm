@@ -190,7 +190,7 @@ exit $LASTEXITCODE
 
           // Create bin shims if present
           if (pkg.bin) {
-            for (const [binName, binPath] of Object.entries(pkg.bin)) {
+            for (const [binName, binPath] of Object.entries(pkg.bin as Record<string, string>)) {
               await this.createBinShims(binName, binPath, virtualPkgDir);
             }
           }

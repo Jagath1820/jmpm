@@ -89,7 +89,7 @@ export class JmpmOrchestrator {
     const existingPackages: Record<string, ResolvedPackage> = {};
 
     if (lockfile) {
-      for (const [key, pkg] of Object.entries(lockfile.packages)) {
+      for (const [key, pkg] of Object.entries(lockfile.packages as Record<string, any>)) {
         const atIdx = key.lastIndexOf('@');
         const name = key.slice(0, atIdx);
         existingPackages[key] = {

@@ -10,7 +10,8 @@
     "services/*"
   ],
   "scripts": {
-    "build": "npm run --workspaces --if-present build",
+    "build:registry": "npm run build --workspace=@jmpm/shared && npm run build --workspace=@jmpm/metadata && npm run build --workspace=@jmpm/storage && npm run build --workspace=@jmpm/registry-api",
+    "build": "npm run build:registry && npm run build --workspace=@jmpm/config && npm run build --workspace=@jmpm/package-manifest && npm run build --workspace=@jmpm/pack && npm run build --workspace=@jmpm/cache && npm run build --workspace=@jmpm/auth && npm run build --workspace=@jmpm/registry-client && npm run build --workspace=@jmpm/resolver && npm run build --workspace=@jmpm/lockfile && npm run build --workspace=@jmpm/installer && npm run build --workspace=@jmpm/core && npm run build --workspace=@jmpm/cli && npm run build --workspace=@jmpm/registry-web",
     "test": "npm run --workspaces --if-present test",
     "dev:registry": "npm --workspace=@jmpm/registry-api run dev",
     "dev:web": "npm --workspace=@jmpm/registry-web run dev",

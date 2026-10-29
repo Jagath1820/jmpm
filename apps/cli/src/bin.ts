@@ -141,7 +141,7 @@ async function main() {
     await program.parseAsync(process.argv);
   } catch (err: unknown) {
     if (err instanceof JmpmError) {
-      logger.error(`[${err.code}] ${err.message}`);
+      logger.error(`[${(err as JmpmError).code}] ${(err as Error).message}`);
     } else if (err instanceof Error) {
       logger.error(err.message);
     } else {

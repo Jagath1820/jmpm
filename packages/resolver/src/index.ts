@@ -119,7 +119,7 @@ export class DependencyResolver {
 
       // Enqueue transitive dependencies
       if (resolvedPkg.dependencies) {
-        for (const [depName, depRange] of Object.entries(resolvedPkg.dependencies)) {
+        for (const [depName, depRange] of Object.entries(resolvedPkg.dependencies as Record<string, string>)) {
           queue.push({ name: depName, range: depRange });
         }
       }
