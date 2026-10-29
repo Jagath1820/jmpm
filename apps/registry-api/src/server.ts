@@ -31,6 +31,18 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
     return null;
   };
 
+  const requireAuthForRead = process.env.REQUIRE_AUTH_FOR_READ === 'true';
+
+  const verifyReadAuth = (req: express.Request, res: express.Response): boolean => {
+    if (!requireAuthForRead) return true;
+    const token = getBearerToken(req);
+    if (!token || !db.getUserByToken(token)) {
+      res.status(401).json({ error: 'Unauthorized: authentication token required to access private packages' });
+      return false;
+    }
+    return true;
+  };
+
   // Ping
   app.get('/-/ping', (req, res) => {
     res.json({ ok: true, pong: true, time: new Date().toISOString() });
@@ -73,6 +85,7 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
 
   // Search packages
   app.get('/-/v1/search', (req, res) => {
+    if (!verifyReadAuth(req, res)) return;
     const q = (req.query.text as string) || '';
     const results = db.searchPackages(q);
     res.json({
@@ -95,6 +108,7 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
 
   // Tarball download: GET /:package/-/:tarball
   app.get(['/:package/-/:tarball', '/@:scope/:pkg/-/:tarball'], async (req, res) => {
+    if (!verifyReadAuth(req, res)) return;
     const tarball = req.params.tarball;
 
     // Direct signed cloud URL redirect if supported (e.g. GCS)
@@ -117,6 +131,7 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
 
   // Package metadata: GET /:package
   app.get(['/:package', '/@:scope/:pkg'], (req, res) => {
+    if (!verifyReadAuth(req, res)) return;
     const pkgName = req.params.scope
       ? `@${req.params.scope}/${req.params.pkg}`
       : extractPkgName(req.params.package);
@@ -138,6 +153,7 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
 
   // Version metadata: GET /:package/:version
   app.get(['/:package/:version', '/@:scope/:pkg/:version'], (req, res) => {
+    if (!verifyReadAuth(req, res)) return;
     const pkgName = req.params.scope
       ? `@${req.params.scope}/${req.params.pkg}`
       : extractPkgName(req.params.package);

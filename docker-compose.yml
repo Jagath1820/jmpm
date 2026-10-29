@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  registry-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jmpm-registry
+    restart: unless-stopped
+    ports:
+      - '4873:4873'
+    environment:
+      - PORT=4873
+      - STORAGE_TYPE=local # or "gcs"
+      - REQUIRE_AUTH_FOR_READ=true # Enforce 100% private registry
+    volumes:
+      - jmpm_storage:/app/storage
+
+  registry-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jmpm-web
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - PORT=3000
+      - REGISTRY_API_URL=http://localhost:4873
+    command: ["node", "--loader", "tsx", "apps/registry-web/src/server.ts"]
+    depends_on:
+      - registry-api
+
+volumes:
+  jmpm_storage:
