@@ -1,0 +1,15 @@
+{
+  "name": "@jmpm/sample-pkg",
+  "version": "1.0.0",
+  "description": "A sample test package for jmpm registry and installer verification",
+  "main": "./index.js",
+  "bin": {
+    "sample-cli": "./bin/run.js"
+  },
+  "scripts": {
+    "test": "node index.js"
+  },
+  "keywords": ["test", "jmpm"],
+  "author": "Jagath"
+}
+

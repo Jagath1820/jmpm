@@ -1,0 +1,17 @@
+{
+  "name": "@jmpm/registry-web",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/server.ts",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts"
+  },
+  "dependencies": {
+    "@jmpm/shared": "*",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "jmpm-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Custom package manager and registry ecosystem in TypeScript & Node.js",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "build": "npm run --workspaces --if-present build",
+    "test": "npm run --workspaces --if-present test",
+    "dev:registry": "npm --workspace=@jmpm/registry-api run dev",
+    "dev:web": "npm --workspace=@jmpm/registry-web run dev",
+    "cli": "tsx apps/cli/src/bin.ts",
+    "test:e2e": "tsx tests/integration/e2e.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.jmpm/
+*.log
+dev.db
+dev.db-journal
+storage/tarballs/
+.env
+.DS_Store
+

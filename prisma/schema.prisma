@@ -1,0 +1,63 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  email        String   @unique
+  token        String   @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  packages     Package[]
+}
+
+model Package {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  scope       String?
+  description String?
+  readme      String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  authorId    String?
+  author      User?            @relation(fields: [authorId], references: [id])
+  versions    PackageVersion[]
+  distTags    DistTag[]
+}
+
+model PackageVersion {
+  id                   String   @id @default(uuid())
+  packageId            String
+  package              Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  version              String
+  description          String?
+  main                 String?
+  readme               String?
+  distTarball          String
+  distShasum           String
+  distIntegrity        String
+  dependenciesJson     String   @default("{}")
+  devDependenciesJson  String   @default("{}")
+  binJson              String?
+  createdAt            DateTime @default(now())
+
+  @@unique([packageId, version])
+}
+
+model DistTag {
+  id        String   @id @default(uuid())
+  packageId String
+  package   Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  tag       String   // e.g. "latest", "beta"
+  version   String
+
+  @@unique([packageId, tag])
+}
+

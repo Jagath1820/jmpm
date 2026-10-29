@@ -1,0 +1,8 @@
+{
+  "name": "sample-consumer",
+  "version": "1.0.0",
+  "description": "Test app consuming jmpm package",
+  "dependencies": {
+    "@jmpm/sample-pkg": "^1.0.0"
+  }
+}
