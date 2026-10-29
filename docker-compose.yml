@@ -27,7 +27,7 @@ services:
     environment:
       - PORT=3000
       - REGISTRY_API_URL=http://localhost:4873
-    command: ["node", "--loader", "tsx", "apps/registry-web/src/server.ts"]
+    command: ["node", "--import", "tsx", "apps/registry-web/src/server.ts"]
     depends_on:
       - registry-api
 

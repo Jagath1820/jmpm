@@ -242,24 +242,19 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
   return { app, db, storage };
 }
 
-export async function startServer(port: number = 4873, storageDir: string = './storage') {
+export async function startServer(
+  port: number = 4873,
+  storageDir: string = './storage',
+  host: string = '0.0.0.0'
+) {
   const { app, db } = createRegistryApp(storageDir);
   await db.init();
 
   return new Promise<{ server: any; port: number }>((resolve) => {
-    const server = app.listen(port, () => {
-      logger.success(`jmpm Registry API is listening at http://localhost:${port}`);
+    const server = app.listen(port, host, () => {
+      logger.success(`jmpm Registry API is listening at http://${host}:${port}`);
       resolve({ server, port });
     });
-  });
-}
-
-// If invoked directly
-if (process.argv[1] && process.argv[1].endsWith('server.ts')) {
-  const port = parseInt(process.env.PORT || '4873', 10);
-  startServer(port).catch((err) => {
-    logger.error('Failed to start registry server:', err);
-    process.exit(1);
   });
 }
 

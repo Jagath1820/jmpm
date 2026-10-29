@@ -4,6 +4,7 @@ dist/
 *.log
 dev.db
 dev.db-journal
+storage/
 storage/tarballs/
 .env
 .DS_Store

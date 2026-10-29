@@ -9,6 +9,6 @@ packages:
   "@jmpm/sample-pkg@1.0.0":
     version: 1.0.0
     resolved: http://localhost:4888/@jmpm/sample-pkg/-/jmpm-sample-pkg-1.0.0.tgz
-    integrity: sha512-6BQ3VGjNTVdwxijF69egsmDVSYrv+WH+iKXNrISwyFWFtisEypTp6SAYuDtEcAF3NRqEE6PqVaVcgg4JinC3wQ==
+    integrity: sha512-QZyoiZtI+IYDO+MhQ1uRS21aTiu7m8YWyfKHDdOO/LgaPaWf5VyJcCiA9Oh9CsRZlszvP0s39qCMLOLW2PcPlg==
     bin:
       sample-cli: ./bin/run.js

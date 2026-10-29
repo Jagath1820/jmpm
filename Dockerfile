@@ -20,6 +20,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=4873
+ENV HOST=0.0.0.0
 
 # Copy monorepo dependencies and code
 COPY --from=builder /app /app
@@ -30,5 +31,5 @@ VOLUME ["/app/storage"]
 
 EXPOSE 4873
 
-CMD ["node", "--loader", "tsx", "apps/registry-api/src/server.ts"]
+CMD ["node", "--import", "tsx", "apps/registry-api/src/start.ts"]
 
