@@ -175,74 +175,79 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
 
   // Publish package: PUT /:package
   app.put(['/:package', '/@:scope/:pkg'], async (req, res) => {
-    const token = getBearerToken(req);
-    if (!token) {
-      return res.status(401).json({ error: 'Authentication required to publish' });
-    }
-    const user = db.getUserByToken(token);
-    if (!user) {
-      return res.status(403).json({ error: 'Invalid authentication token' });
-    }
+    try {
+      const token = getBearerToken(req);
+      if (!token) {
+        return res.status(401).json({ error: 'Authentication required to publish' });
+      }
+      const user = db.getUserByToken(token);
+      if (!user) {
+        return res.status(403).json({ error: 'Invalid authentication token' });
+      }
 
-    const payload = req.body;
-    const pkgName = req.params.scope
-      ? `@${getParam(req.params.scope)}/${getParam(req.params.pkg)}`
-      : extractPkgName(req.params.package);
+      const payload = req.body;
+      const pkgName = req.params.scope
+        ? `@${getParam(req.params.scope)}/${getParam(req.params.pkg)}`
+        : extractPkgName(req.params.package);
 
-    if (!payload || !payload.versions) {
-      return res.status(400).json({ error: 'Invalid publish document: missing versions' });
-    }
+      if (!payload || !payload.versions) {
+        return res.status(400).json({ error: 'Invalid publish document: missing versions' });
+      }
 
-    const incomingVersions = Object.keys(payload.versions);
-    if (incomingVersions.length === 0) {
-      return res.status(400).json({ error: 'No versions provided' });
-    }
+      const incomingVersions = Object.keys(payload.versions);
+      if (incomingVersions.length === 0) {
+        return res.status(400).json({ error: 'No versions provided' });
+      }
 
-    const versionStr = incomingVersions[0];
-    const versionData = payload.versions[versionStr];
+      const versionStr = incomingVersions[0];
+      const versionData = payload.versions[versionStr];
 
-    // Handle tarball attachment
-    if (payload._attachments) {
-      for (const [filename, attachment] of Object.entries<any>(payload._attachments)) {
-        if (attachment.data) {
-          const tarballBuffer = Buffer.from(attachment.data, 'base64');
-          await storage.put(filename, tarballBuffer);
+      // Handle tarball attachment
+      if (payload._attachments) {
+        for (const [filename, attachment] of Object.entries<any>(payload._attachments)) {
+          if (attachment.data) {
+            const tarballBuffer = Buffer.from(attachment.data, 'base64');
+            await storage.put(filename, tarballBuffer);
+          }
         }
       }
+
+      // Merge or create document
+      let existingDoc = db.getPackage(pkgName);
+      if (!existingDoc) {
+        existingDoc = {
+          _id: pkgName,
+          name: pkgName,
+          description: payload.description || versionData.description || '',
+          'dist-tags': {},
+          versions: {},
+          time: {
+            created: new Date().toISOString(),
+            modified: new Date().toISOString()
+          },
+          maintainers: [{ name: user.username, email: user.email }]
+        };
+      }
+
+      // Update versions
+      existingDoc.versions[versionStr] = versionData;
+      existingDoc['dist-tags'] = computeDistTags(existingDoc['dist-tags'], versionStr);
+      if (existingDoc.time) {
+        existingDoc.time.modified = new Date().toISOString();
+        existingDoc.time[versionStr] = new Date().toISOString();
+      }
+
+      await db.savePackage(existingDoc);
+      logger.success(`Registry: Published ${pkgName}@${versionStr} by ${user.username}`);
+
+      res.status(201).json({
+        ok: true,
+        message: `Package ${pkgName}@${versionStr} published successfully`
+      });
+    } catch (err: any) {
+      logger.error('Publish error:', err);
+      res.status(500).json({ error: err.message || 'Internal server error during publish' });
     }
-
-    // Merge or create document
-    let existingDoc = db.getPackage(pkgName);
-    if (!existingDoc) {
-      existingDoc = {
-        _id: pkgName,
-        name: pkgName,
-        description: payload.description || versionData.description || '',
-        'dist-tags': {},
-        versions: {},
-        time: {
-          created: new Date().toISOString(),
-          modified: new Date().toISOString()
-        },
-        maintainers: [{ name: user.username, email: user.email }]
-      };
-    }
-
-    // Update versions
-    existingDoc.versions[versionStr] = versionData;
-    existingDoc['dist-tags'] = computeDistTags(existingDoc['dist-tags'], versionStr);
-    if (existingDoc.time) {
-      existingDoc.time.modified = new Date().toISOString();
-      existingDoc.time[versionStr] = new Date().toISOString();
-    }
-
-    await db.savePackage(existingDoc);
-    logger.success(`Registry: Published ${pkgName}@${versionStr} by ${user.username}`);
-
-    res.status(201).json({
-      ok: true,
-      message: `Package ${pkgName}@${versionStr} published successfully`
-    });
   });
 
   return { app, db, storage };

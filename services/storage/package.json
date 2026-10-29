@@ -15,6 +15,7 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@google-cloud/storage": "^8.4.0",
     "@jmpm/shared": "*"
   }
 }
