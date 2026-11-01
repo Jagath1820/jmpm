@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
-import { logger } from '@jmpm/shared';
+import { logger, JMPM_VERSION } from '@jmpm/shared';
 import { LocalDiskStorageAdapter, createStorageAdapter, StorageAdapter } from '@jmpm/storage';
 import { toAbbreviatedManifest, computeDistTags } from '@jmpm/metadata';
 import { RegistryDB } from './db.js';
@@ -47,6 +47,38 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
   // Health & Ping endpoints (Public, no auth required)
   app.get(['/health', '/-/ping'], (req, res) => {
     res.json({ ok: true, status: 'healthy', pong: true, time: new Date().toISOString() });
+  });
+
+  // About endpoint (Public, no auth required)
+  app.get(['/about', '/-/about'], (req, res) => {
+    const packages = db.getAllPackages();
+    res.json({
+      name: 'jmpm-registry',
+      version: JMPM_VERSION,
+      description: 'JMPM High-Performance Package Manager & Private Registry',
+      status: 'operational',
+      uptime: Math.floor(process.uptime()),
+      time: new Date().toISOString(),
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      upstream: upstreamRegistry,
+      storage: storageType,
+      stats: {
+        totalPackages: packages.length,
+        packages: packages.map((pkg) => ({
+          name: pkg.name,
+          latest: pkg['dist-tags']?.latest || Object.keys(pkg.versions || {}).pop() || '',
+          versions: Object.keys(pkg.versions || {})
+        }))
+      },
+      endpoints: {
+        health: '/health',
+        ping: '/-/ping',
+        about: '/about',
+        search: '/-/v1/search?text=<query>'
+      }
+    });
   });
 
   const getParam = (val: string | string[] | undefined): string => {

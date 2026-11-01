@@ -284,6 +284,19 @@ program
     await orchestrator.whoami();
   });
 
+// about
+program
+  .command('about')
+  .description('Show information about jmpm and the connected registry endpoint')
+  .action(async () => {
+    const opts = program.opts();
+    const orchestrator = new JmpmOrchestrator({
+      registry: opts.registry,
+      token: opts.token
+    });
+    await orchestrator.about();
+  });
+
 // cache clean
 const cacheCmd = program.command('cache').description('Manage the package cache');
 cacheCmd

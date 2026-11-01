@@ -511,6 +511,30 @@ export class JmpmOrchestrator {
     return username;
   }
 
+  public async about(): Promise<void> {
+    await this.init();
+    logger.step('about', `JMPM Ecosystem Info:`);
+    logger.info(`  CLI Version:     v${JMPM_VERSION}`);
+    logger.info(`  Node.js:         ${process.version}`);
+    logger.info(`  Platform:        ${process.platform} (${process.arch})`);
+    logger.info(`  Target Registry: ${this.config.registry}`);
+
+    try {
+      const url = new URL('/about', this.config.registry).toString();
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json() as Record<string, any>;
+        logger.step('registry', `Registry Status: ${data.status || 'operational'}`);
+        logger.info(`  Registry Server: ${data.name || 'jmpm'} v${data.version || '1.0.0'}`);
+        if (data.stats) {
+          logger.info(`  Total Packages:  ${data.stats.totalPackages ?? 0}`);
+        }
+      }
+    } catch {
+      // Remote registry might be standard npm or offline
+    }
+  }
+
   public async cleanCache(): Promise<void> {
     await this.cache.clean();
     logger.success('Local content-addressed store cache cleared.');
