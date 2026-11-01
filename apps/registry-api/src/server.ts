@@ -8,7 +8,6 @@ import { RegistryDB } from './db.js';
 
 export function createRegistryApp(storageDir: string = './storage', customStorage?: StorageAdapter) {
   const app = express();
-  const db = new RegistryDB(storageDir);
   const storageType = (process.env.STORAGE_TYPE as 'local' | 'gcs' | 's3') || 'local';
   const upstreamRegistry = process.env.UPSTREAM_REGISTRY || 'https://registry.npmjs.org';
   const storage = customStorage || createStorageAdapter({
@@ -18,6 +17,7 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
     gcsProjectId: process.env.GCS_PROJECT_ID,
     gcsKeyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
   });
+  const db = new RegistryDB(storageDir, storage);
 
   // Allow larger payloads for publishing tarballs (up to 50MB)
   app.use(cors());

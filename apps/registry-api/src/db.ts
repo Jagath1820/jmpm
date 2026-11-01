@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { RegistryPackageDocument, DistTags } from '@jmpm/shared';
+import { StorageAdapter } from '@jmpm/storage';
 
 export interface UserRecord {
   id: string;
@@ -20,18 +21,35 @@ export interface RegistryDatabaseData {
 
 export class RegistryDB {
   private dbFilePath: string;
+  private storage?: StorageAdapter;
   private data: RegistryDatabaseData = {
     users: {},
     tokens: {},
     packages: {}
   };
 
-  constructor(storageDir: string = './storage') {
+  constructor(storageDir: string = './storage', storage?: StorageAdapter) {
     this.dbFilePath = path.resolve(storageDir, 'registry-db.json');
+    this.storage = storage;
   }
 
   public async init(): Promise<void> {
     await fs.mkdir(path.dirname(this.dbFilePath), { recursive: true });
+
+    // If a persistent cloud storage adapter is provided (e.g. GCS/S3), restore metadata from it
+    if (this.storage) {
+      try {
+        const remoteBuffer = await this.storage.get('registry-db.json');
+        if (remoteBuffer && remoteBuffer.length > 0) {
+          this.data = JSON.parse(remoteBuffer.toString('utf8'));
+          await fs.writeFile(this.dbFilePath, remoteBuffer).catch(() => {});
+          return;
+        }
+      } catch {
+        // Fall back to local file
+      }
+    }
+
     try {
       const raw = await fs.readFile(this.dbFilePath, 'utf8');
       this.data = JSON.parse(raw);
@@ -53,7 +71,17 @@ export class RegistryDB {
   }
 
   private async save(): Promise<void> {
-    await fs.writeFile(this.dbFilePath, JSON.stringify(this.data, null, 2), 'utf8');
+    const raw = JSON.stringify(this.data, null, 2);
+    await fs.writeFile(this.dbFilePath, raw, 'utf8');
+
+    // Also persist to cloud storage adapter (GCS/S3) if configured
+    if (this.storage) {
+      try {
+        await this.storage.put('registry-db.json', Buffer.from(raw, 'utf8'));
+      } catch {
+        // Log or silently handle transient cloud save errors
+      }
+    }
   }
 
   public hashPassword(pwd: string): string {
