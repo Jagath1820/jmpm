@@ -9,6 +9,8 @@ import { ContentAddressedCache } from '@jmpm/cache';
 
 export interface RegistryClientOptions {
   registryUrl: string;
+  upstreamUrl?: string;
+  scopedRegistries?: Record<string, string>;
   token?: string;
   cache?: ContentAddressedCache;
   userAgent?: string;
@@ -16,12 +18,16 @@ export interface RegistryClientOptions {
 
 export class RegistryClient {
   public registryUrl: string;
+  public upstreamUrl?: string;
+  public scopedRegistries: Record<string, string>;
   private token?: string;
   private cache?: ContentAddressedCache;
   private userAgent: string;
 
   constructor(options: RegistryClientOptions) {
     this.registryUrl = options.registryUrl.replace(/\/$/, '');
+    this.upstreamUrl = options.upstreamUrl ? options.upstreamUrl.replace(/\/$/, '') : undefined;
+    this.scopedRegistries = options.scopedRegistries || {};
     this.token = options.token;
     this.cache = options.cache;
     this.userAgent = options.userAgent || 'jmpm/1.0.0';
@@ -31,13 +37,13 @@ export class RegistryClient {
     this.token = token;
   }
 
-  private getHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
+  private getHeaders(extraHeaders: Record<string, string> = {}, forUpstream: boolean = false): Record<string, string> {
     const headers: Record<string, string> = {
       'User-Agent': this.userAgent,
       Accept: 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*',
       ...extraHeaders
     };
-    if (this.token) {
+    if (this.token && !forUpstream) {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
     return headers;
@@ -48,18 +54,57 @@ export class RegistryClient {
       ? `@${encodeURIComponent(packageName.slice(1))}`
       : encodeURIComponent(packageName);
 
-    const url = `${this.registryUrl}/${encodedName}`;
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: this.getHeaders()
-    });
+    let targetBaseUrl = this.registryUrl;
+    if (packageName.startsWith('@')) {
+      const slashIdx = packageName.indexOf('/');
+      if (slashIdx !== -1) {
+        const scope = packageName.slice(0, slashIdx);
+        if (this.scopedRegistries[scope]) {
+          targetBaseUrl = this.scopedRegistries[scope];
+        }
+      }
+    }
 
-    if (res.status === 404) {
+    const primaryUrl = `${targetBaseUrl}/${encodedName}`;
+    let primaryFailed = false;
+    let primaryStatus = 0;
+    let res: Response | null = null;
+
+    try {
+      res = await fetch(primaryUrl, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+      primaryStatus = res.status;
+      if (res.status === 404 || !res.ok) {
+        primaryFailed = true;
+      }
+    } catch {
+      primaryFailed = true;
+    }
+
+    // Upstream fallback if primary returned 404 or connection error
+    if (primaryFailed && this.upstreamUrl && this.upstreamUrl !== this.registryUrl) {
+      try {
+        const upstreamUrl = `${this.upstreamUrl}/${encodedName}`;
+        const upstreamRes = await fetch(upstreamUrl, {
+          method: 'GET',
+          headers: this.getHeaders({}, true)
+        });
+        if (upstreamRes.ok) {
+          return (await upstreamRes.json()) as RegistryPackageDocument;
+        }
+      } catch {
+        // ignore upstream error and throw below
+      }
+    }
+
+    if (!res || primaryStatus === 404) {
       throw new PackageNotFoundError(packageName, this.registryUrl);
     }
 
     if (!res.ok) {
-      throw new JmpmError(`Registry error: ${res.status} ${res.statusText} for ${url}`);
+      throw new JmpmError(`Registry error: ${res.status} ${res.statusText} for ${primaryUrl}`);
     }
 
     return (await res.json()) as RegistryPackageDocument;
@@ -78,9 +123,13 @@ export class RegistryClient {
     }
 
     // 2. Fetch from registry / tarball URL
+    const isUpstream = !!(this.upstreamUrl && tarballUrl.includes(this.upstreamUrl)) ||
+      tarballUrl.includes('registry.npmjs.org') ||
+      tarballUrl.includes('npmjs.com');
+
     const res = await fetch(tarballUrl, {
       method: 'GET',
-      headers: this.getHeaders()
+      headers: this.getHeaders({}, isUpstream)
     });
 
     if (!res.ok) {

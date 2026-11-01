@@ -1,3 +1,14 @@
+export type ScriptCommand = string | string[];
+
+export interface TypeScriptConfigPreset {
+  preset?: 'node' | 'node20' | 'node24' | 'react' | 'lib' | 'strict';
+  outDir?: string;
+  rootDir?: string;
+  strict?: boolean;
+  declaration?: boolean;
+  compilerOptions?: Record<string, unknown>;
+}
+
 export interface PackageManifest {
   name: string;
   version: string;
@@ -10,7 +21,15 @@ export interface PackageManifest {
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
-  scripts?: Record<string, string>;
+  scripts?: Record<string, ScriptCommand>;
+  engines?: Record<string, string>;
+  packageManager?: string;
+  targets?: Record<string, {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  }>;
+  embeddedFiles?: Record<string, string | string[]>;
+  typescript?: TypeScriptConfigPreset;
   files?: string[];
   license?: string;
   repository?: string | { type: string; url: string };
@@ -83,10 +102,13 @@ export interface InstallOptions {
   preferOffline?: boolean;
   force?: boolean;
   silent?: boolean;
+  target?: string;
 }
 
 export interface JmpmConfig {
   registry: string;
+  upstreamRegistry?: string;
+  scopedRegistries?: Record<string, string>;
   storeDir: string;
   token?: string;
   userAgent: string;

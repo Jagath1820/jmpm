@@ -24,6 +24,10 @@
     "@jmpm/pack": "*",
     "@jmpm/registry-client": "*",
     "@jmpm/resolver": "*",
-    "@jmpm/shared": "*"
+    "@jmpm/shared": "*",
+    "semver": "^7.6.3"
+  },
+  "devDependencies": {
+    "@types/semver": "^7.5.8"
   }
 }

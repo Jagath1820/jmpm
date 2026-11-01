@@ -36,10 +36,22 @@ export function loadConfig(options: LoadConfigOptions = {}): JmpmConfig {
   const projectRcPath = path.join(cwd, '.jmpmrc');
 
   const fileConfig: Record<string, string> = {};
+  const scopedRegistries: Record<string, string> = {};
+
+  const scanEntries = (entries: Record<string, string>) => {
+    for (const [k, v] of Object.entries(entries)) {
+      if (k.startsWith('@') && k.endsWith(':registry')) {
+        const scope = k.slice(0, k.indexOf(':'));
+        scopedRegistries[scope] = v.replace(/\/$/, '');
+      }
+    }
+  };
 
   if (fs.existsSync(userRcPath)) {
     try {
-      Object.assign(fileConfig, parseIni(fs.readFileSync(userRcPath, 'utf8')));
+      const parsed = parseIni(fs.readFileSync(userRcPath, 'utf8'));
+      scanEntries(parsed);
+      Object.assign(fileConfig, parsed);
     } catch {
       // ignore
     }
@@ -47,7 +59,22 @@ export function loadConfig(options: LoadConfigOptions = {}): JmpmConfig {
 
   if (fs.existsSync(projectRcPath)) {
     try {
-      Object.assign(fileConfig, parseIni(fs.readFileSync(projectRcPath, 'utf8')));
+      const parsed = parseIni(fs.readFileSync(projectRcPath, 'utf8'));
+      scanEntries(parsed);
+      Object.assign(fileConfig, parsed);
+    } catch {
+      // ignore
+    }
+  }
+
+  const npmrcProject = path.join(cwd, '.npmrc');
+  if (fs.existsSync(npmrcProject)) {
+    try {
+      const npmrc = parseIni(fs.readFileSync(npmrcProject, 'utf8'));
+      scanEntries(npmrc);
+      if (!fileConfig.registry && npmrc.registry) {
+        fileConfig.registry = npmrc.registry;
+      }
     } catch {
       // ignore
     }
@@ -55,9 +82,12 @@ export function loadConfig(options: LoadConfigOptions = {}): JmpmConfig {
 
   const defaultStoreDir = path.join(homeDir, '.jmpm', 'store');
   const defaultRegistry = process.env.JMPM_REGISTRY || fileConfig.registry || 'http://localhost:4873';
+  const defaultUpstream = process.env.UPSTREAM_REGISTRY || fileConfig.upstreamRegistry || 'https://registry.npmjs.org';
 
   const config: JmpmConfig = {
     registry: options.cliFlags?.registry || defaultRegistry,
+    upstreamRegistry: options.cliFlags?.upstreamRegistry || defaultUpstream,
+    scopedRegistries,
     storeDir: options.cliFlags?.storeDir || fileConfig.storeDir || defaultStoreDir,
     token: options.cliFlags?.token || process.env.JMPM_TOKEN || fileConfig.token,
     userAgent: `jmpm/1.0.0 node/${process.version} ${process.platform}-${process.arch}`,

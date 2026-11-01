@@ -63,32 +63,73 @@ export class DependencyResolver {
 
   public async resolve(
     rootDependencies: Record<string, string>,
-    existingPackages: Record<string, ResolvedPackage> = {}
+    existingPackages: Record<string, ResolvedPackage> = {},
+    options: { overrides?: Record<string, string> } = {}
   ): Promise<Map<string, ResolvedPackage>> {
     this.resolvedMap.clear();
     this.inProgress.clear();
+
+    const overrides = options.overrides || {};
 
     // Populate existing packages if provided
     for (const [key, pkg] of Object.entries(existingPackages)) {
       this.resolvedMap.set(key, pkg);
     }
 
-    const queue: Array<{ name: string; range: string }> = [];
+    const queue: Array<{ name: string; range: string; optional?: boolean }> = [];
     for (const [name, range] of Object.entries(rootDependencies)) {
-      queue.push({ name, range });
+      const targetRange = overrides[name] || range;
+      queue.push({ name, range: targetRange });
     }
 
     while (queue.length > 0) {
       const current = queue.shift()!;
-      const keyPrefix = `${current.name}@${current.range}`;
+      const effectiveRange = overrides[current.name] || current.range;
+      const keyPrefix = `${current.name}@${effectiveRange}`;
 
       if (this.inProgress.has(keyPrefix)) {
         continue;
       }
       this.inProgress.add(keyPrefix);
 
-      const doc = await this.getMetadata(current.name);
-      const versionMeta = this.findBestVersion(doc, current.range);
+      let doc: RegistryPackageDocument;
+      try {
+        doc = await this.getMetadata(current.name);
+      } catch (err) {
+        if (current.optional) {
+          // Gracefully ignore missing optional dependencies
+          continue;
+        }
+        throw err;
+      }
+
+      let versionMeta: RegistryVersionMetadata;
+      try {
+        versionMeta = this.findBestVersion(doc, effectiveRange);
+      } catch (err) {
+        if (current.optional) {
+          continue;
+        }
+        throw err;
+      }
+
+      // Check OS & CPU platform compatibility
+      const rawMeta = versionMeta as Record<string, any>;
+      if (rawMeta.os && Array.isArray(rawMeta.os)) {
+        const currentOs = process.platform;
+        const osMatch = rawMeta.os.some((o: string) => o === currentOs || (o.startsWith('!') && o.slice(1) !== currentOs));
+        if (!osMatch && current.optional) {
+          continue;
+        }
+      }
+      if (rawMeta.cpu && Array.isArray(rawMeta.cpu)) {
+        const currentCpu = process.arch;
+        const cpuMatch = rawMeta.cpu.some((c: string) => c === currentCpu || (c.startsWith('!') && c.slice(1) !== currentCpu));
+        if (!cpuMatch && current.optional) {
+          continue;
+        }
+      }
+
       const resolvedKey = `${versionMeta.name}@${versionMeta.version}`;
 
       if (this.resolvedMap.has(resolvedKey)) {
@@ -120,7 +161,16 @@ export class DependencyResolver {
       // Enqueue transitive dependencies
       if (resolvedPkg.dependencies) {
         for (const [depName, depRange] of Object.entries(resolvedPkg.dependencies as Record<string, string>)) {
-          queue.push({ name: depName, range: depRange });
+          const finalDepRange = overrides[depName] || depRange;
+          queue.push({ name: depName, range: finalDepRange });
+        }
+      }
+
+      // Enqueue optionalDependencies
+      if (rawMeta.optionalDependencies && typeof rawMeta.optionalDependencies === 'object') {
+        for (const [depName, depRange] of Object.entries(rawMeta.optionalDependencies as Record<string, string>)) {
+          const finalDepRange = overrides[depName] || depRange;
+          queue.push({ name: depName, range: finalDepRange, optional: true });
         }
       }
     }

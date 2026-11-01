@@ -114,5 +114,40 @@ export class RegistryDB {
   public getAllPackages(): RegistryPackageDocument[] {
     return Object.values(this.data.packages);
   }
+
+  public async deletePackage(name: string): Promise<boolean> {
+    if (this.data.packages[name]) {
+      delete this.data.packages[name];
+      await this.save();
+      return true;
+    }
+    return false;
+  }
+
+  public async deleteVersion(name: string, version: string): Promise<boolean> {
+    const pkg = this.data.packages[name];
+    if (pkg && pkg.versions[version]) {
+      delete pkg.versions[version];
+      const remainingVersions = Object.keys(pkg.versions);
+      if (remainingVersions.length === 0) {
+        delete this.data.packages[name];
+      } else if (pkg['dist-tags']?.latest === version) {
+        pkg['dist-tags'].latest = remainingVersions[remainingVersions.length - 1];
+      }
+      await this.save();
+      return true;
+    }
+    return false;
+  }
+
+  public async deprecateVersion(name: string, version: string, message: string): Promise<boolean> {
+    const pkg = this.data.packages[name];
+    if (pkg && pkg.versions[version]) {
+      (pkg.versions[version] as any).deprecated = message;
+      await this.save();
+      return true;
+    }
+    return false;
+  }
 }
 

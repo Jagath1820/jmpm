@@ -10,6 +10,7 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
   const app = express();
   const db = new RegistryDB(storageDir);
   const storageType = (process.env.STORAGE_TYPE as 'local' | 'gcs' | 's3') || 'local';
+  const upstreamRegistry = process.env.UPSTREAM_REGISTRY || 'https://registry.npmjs.org';
   const storage = customStorage || createStorageAdapter({
     type: storageType,
     localDir: path.join(storageDir, 'tarballs'),
@@ -127,6 +128,13 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
 
     const buffer = await storage.get(tarball);
     if (!buffer) {
+      if (upstreamRegistry) {
+        const pkg = req.params.scope
+          ? `@${getParam(req.params.scope)}/${getParam(req.params.pkg)}`
+          : extractPkgName(req.params.package);
+        const upstreamTarballUrl = `${upstreamRegistry.replace(/\/$/, '')}/${pkg}/-/${tarball}`;
+        return res.redirect(302, upstreamTarballUrl);
+      }
       return res.status(404).json({ error: `Tarball ${tarball} not found` });
     }
 
@@ -136,13 +144,31 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
   });
 
   // Package metadata: GET /:package
-  app.get(['/:package', '/@:scope/:pkg'], (req, res) => {
+  app.get(['/:package', '/@:scope/:pkg'], async (req, res) => {
     if (!verifyReadAuth(req, res)) return;
     const pkgName = req.params.scope
       ? `@${getParam(req.params.scope)}/${getParam(req.params.pkg)}`
       : extractPkgName(req.params.package);
 
-    const doc = db.getPackage(pkgName);
+    let doc = db.getPackage(pkgName);
+    if (!doc && upstreamRegistry) {
+      try {
+        const upstreamUrl = `${upstreamRegistry.replace(/\/$/, '')}/${encodeURIComponent(pkgName)}`;
+        const upstreamRes = await fetch(upstreamUrl, {
+          headers: {
+            'User-Agent': 'jmpm-registry-proxy/1.0.0',
+            'Accept': req.headers.accept || 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
+          }
+        });
+        if (upstreamRes.ok) {
+          const upstreamDoc = (await upstreamRes.json()) as any;
+          return res.json(upstreamDoc);
+        }
+      } catch {
+        // upstream failed
+      }
+    }
+
     if (!doc) {
       return res.status(404).json({ error: `Package "${pkgName}" not found` });
     }
@@ -231,6 +257,12 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
 
       // Update versions
       existingDoc.versions[versionStr] = versionData;
+      if (payload['dist-tags']) {
+        existingDoc['dist-tags'] = {
+          ...existingDoc['dist-tags'],
+          ...payload['dist-tags']
+        };
+      }
       existingDoc['dist-tags'] = computeDistTags(existingDoc['dist-tags'], versionStr);
       if (existingDoc.time) {
         existingDoc.time.modified = new Date().toISOString();
@@ -248,6 +280,46 @@ export function createRegistryApp(storageDir: string = './storage', customStorag
       logger.error('Publish error:', err);
       res.status(500).json({ error: err.message || 'Internal server error during publish' });
     }
+  });
+
+  // Unpublish package or version
+  app.delete(['/:package', '/@:scope/:pkg', '/:package/-/:tarball/-rev/:rev'], async (req, res) => {
+    const token = getBearerToken(req);
+    if (!token) return res.status(401).json({ error: 'Authentication required to unpublish' });
+    const user = db.getUserByToken(token);
+    if (!user) return res.status(403).json({ error: 'Invalid authentication token' });
+
+    const pkgName = req.params.scope
+      ? `@${getParam(req.params.scope)}/${getParam(req.params.pkg)}`
+      : extractPkgName(req.params.package);
+
+    const deleted = await db.deletePackage(pkgName);
+    if (deleted) {
+      logger.info(`Registry: Package "${pkgName}" unpublished by ${user.username}`);
+      return res.json({ ok: true, message: `Package "${pkgName}" unpublished successfully` });
+    }
+    res.status(404).json({ error: `Package "${pkgName}" not found` });
+  });
+
+  // Deprecate package version
+  app.put(['/:package/:version/deprecate', '/@:scope/:pkg/:version/deprecate'], async (req, res) => {
+    const token = getBearerToken(req);
+    if (!token) return res.status(401).json({ error: 'Authentication required' });
+    const user = db.getUserByToken(token);
+    if (!user) return res.status(403).json({ error: 'Invalid token' });
+
+    const pkgName = req.params.scope
+      ? `@${getParam(req.params.scope)}/${getParam(req.params.pkg)}`
+      : extractPkgName(req.params.package);
+    const version = getParam(req.params.version);
+    const { message } = req.body || {};
+
+    const success = await db.deprecateVersion(pkgName, version, message || 'This version is deprecated');
+    if (success) {
+      logger.info(`Registry: Package "${pkgName}@${version}" deprecated by ${user.username}`);
+      return res.json({ ok: true, message: `Version ${version} of "${pkgName}" deprecated successfully` });
+    }
+    res.status(404).json({ error: `Package or version not found` });
   });
 
   return { app, db, storage };

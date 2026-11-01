@@ -17,6 +17,8 @@ export interface InstallPackagesOptions {
   directDevDependencies?: Record<string, string>;
   client: RegistryClient;
   cache: ContentAddressedCache;
+  offline?: boolean;
+  vendorDir?: string;
 }
 
 export class PackageInstaller {
@@ -146,32 +148,85 @@ exit $LASTEXITCODE
     await fs.writeFile(ps1Path, ps1Shim, 'utf8');
   }
 
+  public async runLifecycleScripts(targetDir: string, pkgName: string): Promise<void> {
+    const pkgJsonPath = path.join(targetDir, 'package.json');
+    try {
+      const content = await fs.readFile(pkgJsonPath, 'utf8');
+      const manifest = JSON.parse(content);
+      const script = manifest.scripts?.install || manifest.scripts?.postinstall;
+      if (!script) return;
+
+      const binDir = this.binDir;
+      const localBin = path.join(targetDir, 'node_modules', '.bin');
+      const env = {
+        ...process.env,
+        PATH: `${localBin}${path.delimiter}${binDir}${path.delimiter}${process.env.PATH || ''}`
+      };
+
+      const { exec } = await import('node:child_process');
+      await new Promise<void>((resolve) => {
+        exec(script, { cwd: targetDir, env, timeout: 60000 }, (error) => {
+          if (error) {
+            logger.warn(`Lifecycle script failed for ${pkgName}: ${error.message}`);
+          }
+          resolve();
+        });
+      });
+    } catch {
+      // Ignore if manifest missing or script fails
+    }
+  }
+
   public async install(options: InstallPackagesOptions): Promise<void> {
     await fs.mkdir(this.nodeModulesDir, { recursive: true });
     await fs.mkdir(this.virtualStoreDir, { recursive: true });
 
-    const totalPackages = options.packages.size;
-    let installedCount = 0;
+    const entries = Array.from(options.packages.entries());
+    const newlyExtracted: Array<{ targetDir: string; name: string }> = [];
 
-    // 1. Download and extract all packages to virtual store
-    for (const [key, pkg] of options.packages.entries()) {
-      installedCount++;
-      const targetDir = this.getVirtualPackageDir(pkg.name, pkg.version);
+    // 1. Download and extract all packages to virtual store with parallel worker pool
+    const concurrency = 10;
+    let idx = 0;
+    const workers = Array.from({ length: Math.min(concurrency, entries.length) }, async () => {
+      while (idx < entries.length) {
+        const currentIdx = idx++;
+        const [key, pkg] = entries[currentIdx];
+        const targetDir = this.getVirtualPackageDir(pkg.name, pkg.version);
 
-      // Check if already extracted
-      let alreadyExtracted = false;
-      try {
-        await fs.access(path.join(targetDir, 'package.json'));
-        alreadyExtracted = true;
-      } catch {
-        alreadyExtracted = false;
+        let alreadyExtracted = false;
+        try {
+          await fs.access(path.join(targetDir, 'package.json'));
+          alreadyExtracted = true;
+        } catch {
+          alreadyExtracted = false;
+        }
+
+        if (!alreadyExtracted) {
+          try {
+            let tarballBuffer: Buffer;
+            if (options.offline && options.vendorDir) {
+              const safeKey = this.getSafeKey(pkg.name, pkg.version);
+              const vendorTarball = path.join(options.vendorDir, `${safeKey}.tgz`);
+              tarballBuffer = await fs.readFile(vendorTarball);
+              if (pkg.integrity && pkg.integrity.startsWith('sha512-')) {
+                const crypto = await import('node:crypto');
+                const actualHash = `sha512-${crypto.createHash('sha512').update(tarballBuffer).digest('base64')}`;
+                if (actualHash !== pkg.integrity) {
+                  throw new SecurityError(`Vendored tarball integrity mismatch for ${pkg.name}@${pkg.version}`);
+                }
+              }
+            } else {
+              tarballBuffer = await options.client.downloadTarball(pkg.resolved, pkg.integrity);
+            }
+            await this.safeExtract(tarballBuffer, targetDir);
+            newlyExtracted.push({ targetDir, name: pkg.name });
+          } catch (err: any) {
+            logger.warn(`Failed to install ${pkg.name}@${pkg.version}: ${err.message}`);
+          }
+        }
       }
-
-      if (!alreadyExtracted) {
-        const tarballBuffer = await options.client.downloadTarball(pkg.resolved, pkg.integrity);
-        await this.safeExtract(tarballBuffer, targetDir);
-      }
-    }
+    });
+    await Promise.all(workers);
 
     // 2. Link direct root dependencies into root node_modules
     const directNames = new Set([
@@ -206,19 +261,42 @@ exit $LASTEXITCODE
       }
 
       const virtualPkgDir = this.getVirtualPackageDir(pkg.name, pkg.version);
-      const pkgInternalNodeModules = path.join(path.dirname(virtualPkgDir), '..', 'node_modules');
+      const safeKey = this.getSafeKey(pkg.name, pkg.version);
+      const virtualStorePkgRoot = path.join(this.virtualStoreDir, safeKey);
+      const pkgInternalNodeModules = path.join(virtualStorePkgRoot, 'node_modules');
+      const directInternalNodeModules = path.join(virtualPkgDir, 'node_modules');
 
       for (const depName of Object.keys(pkg.dependencies)) {
         // Find resolved dependency version
         for (const [otherKey, otherPkg] of options.packages.entries()) {
           if (otherPkg.name === depName) {
             const depVirtualDir = this.getVirtualPackageDir(otherPkg.name, otherPkg.version);
-            const depLinkDest = path.join(pkgInternalNodeModules, depName);
-            await this.createDirectoryLink(depVirtualDir, depLinkDest);
+            
+            // Link in virtual-store root and package direct node_modules
+            await this.createDirectoryLink(depVirtualDir, path.join(pkgInternalNodeModules, depName));
+            await this.createDirectoryLink(depVirtualDir, path.join(directInternalNodeModules, depName));
+
+            // Also safely provide in root node_modules if no collision, for seamless Node.js CJS/ESM resolution
+            const rootDepLink = path.join(this.nodeModulesDir, depName);
+            let rootExists = false;
+            try {
+              await fs.lstat(rootDepLink);
+              rootExists = true;
+            } catch {
+              rootExists = false;
+            }
+            if (!rootExists) {
+              await this.createDirectoryLink(depVirtualDir, rootDepLink);
+            }
             break;
           }
         }
       }
+    }
+
+    // 4. Run postinstall/install scripts for newly extracted packages
+    for (const { targetDir, name } of newlyExtracted) {
+      await this.runLifecycleScripts(targetDir, name);
     }
   }
 }

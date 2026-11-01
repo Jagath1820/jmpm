@@ -3,12 +3,33 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import * as tar from 'tar';
 import { readPackageManifest } from '@jmpm/package-manifest';
-import { TarballDist } from '@jmpm/shared';
+import { TarballDist, SecurityError } from '@jmpm/shared';
 
 export interface PackResult {
   filename: string;
   tarballBuffer: Buffer;
   dist: TarballDist;
+}
+
+export const SENSITIVE_PATTERNS = [
+  /\.env(\..+)?$/i,
+  /\.(pem|key|pkcs12|pfx|p12)$/i,
+  /id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$/i,
+  /(credentials|service-account.*|client-secret.*)\.json$/i,
+  /(^|\/)secrets\//i,
+  /(^|\/)\.aws\//i,
+  /(^|\/)\.ssh\//i
+];
+
+export function detectSecrets(files: string[]): string[] {
+  const leaks: string[] = [];
+  for (const file of files) {
+    const base = path.basename(file);
+    if (SENSITIVE_PATTERNS.some((pattern) => pattern.test(file) || pattern.test(base))) {
+      leaks.push(file);
+    }
+  }
+  return leaks;
 }
 
 export async function shouldIncludeFile(
@@ -92,6 +113,16 @@ export async function collectFiles(
 export async function packPackage(pkgDir: string): Promise<PackResult> {
   const manifest = await readPackageManifest(pkgDir);
   const files = await collectFiles(pkgDir, pkgDir, manifest.files);
+
+  // Security check: Pre-publish secret leak detection
+  const leaks = detectSecrets(files);
+  if (leaks.length > 0) {
+    throw new SecurityError(
+      `Pre-publish secret detection triggered! Found sensitive file(s):\n` +
+      leaks.map((f) => `   ✖ ${f}`).join('\n') +
+      `\nAborting pack/publish to prevent leaking credentials to the registry.`
+    );
+  }
 
   // Clean package name for tarball filename (e.g., @scope/pkg -> scope-pkg)
   const safeName = manifest.name.replace(/^@/, '').replace(/\//, '-');
