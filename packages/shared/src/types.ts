@@ -1,3 +1,5 @@
+export const JMPM_VERSION = '1.1.0';
+
 export type ScriptCommand = string | string[];
 
 export interface TypeScriptConfigPreset {
@@ -56,6 +58,7 @@ export interface RegistryVersionMetadata extends PackageManifest {
   _id: string;
   dist: TarballDist;
   readmeFilename?: string;
+  builtinSourcePath?: string;
 }
 
 export interface RegistryPackageDocument {
@@ -76,6 +79,7 @@ export interface ResolvedPackage {
   integrity: string; // sha512 integrity string
   dependencies: Record<string, string>; // name -> version
   bin?: Record<string, string>;
+  builtinSourcePath?: string;
 }
 
 export interface LockfilePackage {

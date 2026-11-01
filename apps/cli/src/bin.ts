@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import readline from 'node:readline/promises';
-import { logger, JmpmError } from '@jmpm/shared';
+import { logger, JmpmError, JMPM_VERSION } from '@jmpm/shared';
 import { JmpmOrchestrator } from '@jmpm/core';
 
 const program = new Command();
@@ -9,7 +9,7 @@ const program = new Command();
 program
   .name('jmpm')
   .description('jmpm (and forgepm) - Modern TypeScript Package Manager & Registry Client')
-  .version('1.0.0')
+  .version(JMPM_VERSION)
   .option('-r, --registry <url>', 'Override registry URL')
   .option('--token <token>', 'Registry auth token');
 
@@ -17,7 +17,7 @@ program
 program
   .command('install')
   .alias('i')
-  .description('Install dependencies from package.json and jmpm-lock.yaml')
+  .description('Install dependencies from package.json')
   .option('--offline', 'Install from local .jmpm/vendor store without network')
   .option('-t, --target <profile>', 'Install dependencies for a specific target profile (e.g. docker, local)')
   .action(async (cmdOpts: { offline?: boolean; target?: string }) => {

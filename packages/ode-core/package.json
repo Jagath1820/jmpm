@@ -1,0 +1,40 @@
+{
+  "name": "@ode/core",
+  "version": "1.0.0",
+  "description": "Open Delegation Engine (ODE) - Universal capability verification, attenuation evaluator, and cryptographic delegation token protocol",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "registry": "https://jmpm-package-manager-nyma5wdf5q-ue.a.run.app"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\""
+  },
+  "keywords": [
+    "ode",
+    "delegation",
+    "capabilities",
+    "cryptography",
+    "authorization",
+    "tokens"
+  ],
+  "author": "ODE Team",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3"
+  }
+}
+

@@ -1,15 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import semver from 'semver';
-import { PackageManifest, ManifestValidationError } from '@jmpm/shared';
+import { PackageManifest, ManifestValidationError, JMPM_VERSION } from '@jmpm/shared';
 
 const SCOPED_PACKAGE_REGEX = /^@([a-z0-9~-][a-z0-9._~-]*)\/([a-z0-9~-][a-z0-9._~-]*)$/;
 const REGULAR_PACKAGE_REGEX = /^[a-z0-9~-][a-z0-9._~-]*$/;
 
 export const CANDIDATE_MANIFEST_FILES = [
-  'jmpm.jsonc',
-  'jmpm.json',
-  'package.jsonc',
   'package.json'
 ];
 
@@ -182,29 +179,6 @@ export async function readPackageManifest(dirOrFilePath: string): Promise<Packag
     );
   }
 
-  // Support single import / extends pointer (e.g. "import": "./jmpm.jsonc" or "extends": "./jmpm.jsonc")
-  if (parsed && typeof parsed === 'object') {
-    const pkgObj = parsed as Record<string, unknown>;
-    const targetRef = (pkgObj.import || pkgObj.extends) as string | undefined;
-    if (typeof targetRef === 'string') {
-      const parentDir = path.dirname(filePath);
-      const targetPath = path.resolve(parentDir, targetRef);
-      try {
-        const targetRaw = await fs.readFile(targetPath, 'utf8');
-        const targetParsed = parseJsonc<Record<string, unknown>>(targetRaw);
-        parsed = {
-          ...targetParsed,
-          ...pkgObj
-        };
-        delete (parsed as Record<string, unknown>).import;
-        delete (parsed as Record<string, unknown>).extends;
-      } catch (err: unknown) {
-        throw new ManifestValidationError(
-          `Failed to load extended manifest "${targetRef}" referenced in ${filePath}: ${err instanceof Error ? err.message : String(err)}`
-        );
-      }
-    }
-  }
 
   validatePackageManifest(parsed);
   return parsed;
@@ -232,7 +206,7 @@ export interface EngineCheckResult {
  */
 export function checkEngines(
   manifest: PackageManifest,
-  currentJmpmVersion: string = '1.0.0'
+  currentJmpmVersion: string = JMPM_VERSION
 ): EngineCheckResult {
   const errors: string[] = [];
   const warnings: string[] = [];

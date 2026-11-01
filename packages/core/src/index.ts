@@ -6,7 +6,8 @@ import {
   PackageManifest,
   ResolvedPackage,
   logger,
-  JmpmError
+  JmpmError,
+  JMPM_VERSION
 } from '@jmpm/shared';
 import { loadConfig } from '@jmpm/config';
 import { AuthManager } from '@jmpm/auth';
@@ -97,7 +98,7 @@ export class JmpmOrchestrator {
     const manifest = await readPackageManifest(this.cwd);
 
     // Validate engine constraints (Node.js & JMPM version)
-    const engineCheck = checkEngines(manifest, '1.0.0');
+    const engineCheck = checkEngines(manifest, JMPM_VERSION);
     if (!engineCheck.valid) {
       for (const err of engineCheck.errors) {
         logger.error(err);
@@ -193,16 +194,7 @@ export class JmpmOrchestrator {
       vendorDir: isOffline ? vendorDir : undefined
     });
 
-    if (!isOffline) {
-      // Write deterministic lockfile
-      logger.step('lockfile', 'Writing jmpm-lock.yaml...');
-      const newLockfile = resolvedMapToLockfile(
-        resolvedGraph,
-        manifest.dependencies || {},
-        manifest.devDependencies || {}
-      );
-      await writeLockfile(this.cwd, newLockfile);
-    }
+
 
     logger.success(`Successfully installed ${resolvedGraph.size} packages${isOffline ? ' (offline)' : ''}!`);
   }
@@ -386,7 +378,7 @@ export class JmpmOrchestrator {
     const manifest = await readPackageManifest(this.cwd);
 
     // Validate engines
-    const engineCheck = checkEngines(manifest, '1.0.0');
+    const engineCheck = checkEngines(manifest, JMPM_VERSION);
     if (!engineCheck.valid) {
       throw new JmpmError(`Engine constraint violation:\n${engineCheck.errors.join('\n')}`, 'ERR_ENGINE_INCOMPATIBLE');
     }
@@ -928,13 +920,7 @@ export class JmpmOrchestrator {
       }
     }
 
-    // Write lockfile to ensure lockfile is in sync
-    const newLockfile = resolvedMapToLockfile(
-      resolvedGraph,
-      manifest.dependencies || {},
-      manifest.devDependencies || {}
-    );
-    await writeLockfile(this.cwd, newLockfile);
+
 
     const mb = (totalBytes / (1024 * 1024)).toFixed(2);
     logger.success(`Offline vendor store created: ${resolvedGraph.size} packages (${mb} MB) in .jmpm/vendor`);

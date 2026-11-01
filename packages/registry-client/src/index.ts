@@ -3,7 +3,8 @@ import {
   RegistryPackageDocument,
   PackageNotFoundError,
   ChecksumMismatchError,
-  JmpmError
+  JmpmError,
+  getBuiltinPackage
 } from '@jmpm/shared';
 import { ContentAddressedCache } from '@jmpm/cache';
 
@@ -50,6 +51,32 @@ export class RegistryClient {
   }
 
   public async getPackageMetadata(packageName: string): Promise<RegistryPackageDocument> {
+    // 1. Check local built-in packages (zero network, 100% proprietary)
+    const builtin = getBuiltinPackage(packageName);
+    if (builtin) {
+      const manifest = builtin.manifest as Record<string, unknown>;
+      return {
+        _id: builtin.name,
+        name: builtin.name,
+        'dist-tags': { latest: builtin.version },
+        versions: {
+          [builtin.version]: {
+            ...manifest,
+            _id: `${builtin.name}@${builtin.version}`,
+            name: builtin.name,
+            version: builtin.version,
+            dependencies: (manifest.dependencies as Record<string, string>) || {},
+            builtinSourcePath: builtin.dir,
+            dist: {
+              tarball: `builtin://${builtin.name}`,
+              shasum: 'builtin',
+              integrity: 'builtin'
+            }
+          }
+        }
+      };
+    }
+
     const encodedName = packageName.startsWith('@')
       ? `@${encodeURIComponent(packageName.slice(1))}`
       : encodeURIComponent(packageName);

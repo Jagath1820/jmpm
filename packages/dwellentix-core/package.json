@@ -1,0 +1,42 @@
+{
+  "name": "@dwellentix/auth",
+  "version": "1.2.0",
+  "description": "Universal authentication and ODE capability mapping for Dwellentix API and UI",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "registry": "https://jmpm-package-manager-nyma5wdf5q-ue.a.run.app"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "test": "node --test dist/test/*.js"
+  },
+  "keywords": [
+    "dwellentix",
+    "auth",
+    "ode",
+    "jwt",
+    "security"
+  ],
+  "author": "Jagath",
+  "license": "ISC",
+  "dependencies": {
+    "@ode/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3"
+  }
+}

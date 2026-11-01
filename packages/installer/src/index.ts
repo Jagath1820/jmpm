@@ -5,7 +5,8 @@ import * as tar from 'tar';
 import {
   ResolvedPackage,
   SecurityError,
-  logger
+  logger,
+  getBuiltinPackage
 } from '@jmpm/shared';
 import { RegistryClient } from '@jmpm/registry-client';
 import { ContentAddressedCache } from '@jmpm/cache';
@@ -203,11 +204,18 @@ exit $LASTEXITCODE
 
         if (!alreadyExtracted) {
           try {
-            let tarballBuffer: Buffer;
-            if (options.offline && options.vendorDir) {
+            if (pkg.resolved && pkg.resolved.startsWith('builtin://')) {
+              const builtinSource = pkg.builtinSourcePath || getBuiltinPackage(pkg.name)?.dir;
+              if (builtinSource) {
+                await this.createDirectoryLink(builtinSource, targetDir);
+                newlyExtracted.push({ targetDir, name: pkg.name });
+              } else {
+                throw new Error(`Built-in package "${pkg.name}" could not be located on disk`);
+              }
+            } else if (options.offline && options.vendorDir) {
               const safeKey = this.getSafeKey(pkg.name, pkg.version);
               const vendorTarball = path.join(options.vendorDir, `${safeKey}.tgz`);
-              tarballBuffer = await fs.readFile(vendorTarball);
+              const tarballBuffer = await fs.readFile(vendorTarball);
               if (pkg.integrity && pkg.integrity.startsWith('sha512-')) {
                 const crypto = await import('node:crypto');
                 const actualHash = `sha512-${crypto.createHash('sha512').update(tarballBuffer).digest('base64')}`;
@@ -215,11 +223,13 @@ exit $LASTEXITCODE
                   throw new SecurityError(`Vendored tarball integrity mismatch for ${pkg.name}@${pkg.version}`);
                 }
               }
+              await this.safeExtract(tarballBuffer, targetDir);
+              newlyExtracted.push({ targetDir, name: pkg.name });
             } else {
-              tarballBuffer = await options.client.downloadTarball(pkg.resolved, pkg.integrity);
+              const tarballBuffer = await options.client.downloadTarball(pkg.resolved, pkg.integrity);
+              await this.safeExtract(tarballBuffer, targetDir);
+              newlyExtracted.push({ targetDir, name: pkg.name });
             }
-            await this.safeExtract(tarballBuffer, targetDir);
-            newlyExtracted.push({ targetDir, name: pkg.name });
           } catch (err: any) {
             logger.warn(`Failed to install ${pkg.name}@${pkg.version}: ${err.message}`);
           }

@@ -150,10 +150,11 @@ export class DependencyResolver {
       const resolvedPkg: ResolvedPackage = {
         name: versionMeta.name,
         version: versionMeta.version,
-        resolved: versionMeta.dist.tarball,
-        integrity: versionMeta.dist.integrity || '',
+        resolved: versionMeta.dist?.tarball || `builtin://${versionMeta.name}`,
+        integrity: versionMeta.dist?.integrity || 'builtin',
         dependencies: versionMeta.dependencies || {},
-        bin: binMap
+        bin: binMap,
+        builtinSourcePath: (versionMeta as any).builtinSourcePath
       };
 
       this.resolvedMap.set(resolvedKey, resolvedPkg);
