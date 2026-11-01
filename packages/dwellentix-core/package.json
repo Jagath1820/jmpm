@@ -1,6 +1,6 @@
 {
   "name": "@dwellentix/auth",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Universal authentication and ODE capability mapping for Dwellentix API and UI",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

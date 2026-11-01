@@ -1,6 +1,6 @@
 {
   "name": "@ode/core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Open Delegation Engine (ODE) - Universal capability verification, attenuation evaluator, and cryptographic delegation token protocol",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -37,4 +37,3 @@
     "typescript": "^5.5.3"
   }
 }
-
